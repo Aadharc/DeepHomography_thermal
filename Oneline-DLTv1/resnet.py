@@ -277,7 +277,7 @@ class ResNet(nn.Module):
         # step1 freeze the mask_ap use "mask_ap = torch.ones_like(mask_ap)" ,thus gradient do not update and mask=1
         # step2 delete this line ("mask_ap = torch.ones_like(mask_ap)")  to update gradient of genMask
         # ######
-        # mask_ap = torch.ones_like(mask_ap)
+        mask_ap = torch.ones_like(mask_ap)
         # ######
 
         sum_value = torch.sum(mask_ap)

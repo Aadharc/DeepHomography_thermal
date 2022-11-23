@@ -6,7 +6,7 @@ import numpy as np
 import os
 import torch.nn as nn
 import torch.optim as optim
-from tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 import cv2
 from torch_homography_model import build_model
 from datetime import datetime
@@ -39,7 +39,9 @@ if not os.path.exists(LOG_DIR):
 
 def train(args):
 
-    train_path = os.path.join(exp_name, 'Data/Train_List.txt')
+    # train_path = os.path.join(exp_name, 'Data/Train_List.txt')
+    vis_path = "/mnt/mass_storage/gdrive_backup/WiSAR_dataset/AFSL_Dataset/Full_Dataset_Annotated/DO_NOT_MODIFY_Chris_Reviewed/Aadhar_Reviewed/Train/VIS/"
+    ir_path = "/mnt/mass_storage/gdrive_backup/WiSAR_dataset/AFSL_Dataset/Full_Dataset_Annotated/DO_NOT_MODIFY_Chris_Reviewed/Aadhar_Reviewed/Train/IR/"
     net = build_model(args.model_name, pretrained=args.pretrained)
 
     if args.finetune:
@@ -63,7 +65,7 @@ def train(args):
     if torch.cuda.is_available():
         net = net.cuda()
 
-    train_data = TrainDataset(data_path=train_path, exp_path=exp_name, patch_w=args.patch_size_w, patch_h=args.patch_size_h, rho=16)
+    train_data = TrainDataset(data_path_vis=vis_path, data_path_ir=ir_path, exp_path=exp_name, patch_w=args.patch_size_w, patch_h=args.patch_size_h, rho=16)
     train_loader = DataLoader(dataset=train_data, batch_size=args.batch_size, num_workers=args.cpus, shuffle=True, drop_last=True)
 
     optimizer = optim.Adam(net.parameters(), lr=args.lr, amsgrad=True, weight_decay=1e-4)  # default as 0.0001

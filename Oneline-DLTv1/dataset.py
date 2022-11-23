@@ -2,6 +2,7 @@ from torch.utils.data import Dataset
 import  numpy as np
 import cv2, torch
 import os
+import natsort
 
 
 def make_mesh(patch_w,patch_h):
@@ -46,6 +47,10 @@ class TrainDataset(Dataset):
 
         self.data_path_vis = data_path_vis
         self.data_path_ir = data_path_ir
+        all_imgs_vis = os.listdir(data_path_vis)
+        all_imgs_ir = os.listdir(data_path_ir)
+        self.total_img_vis = natsort.natsorted(all_imgs_vis)
+        self.total_img_ir = natsort.natsorted(all_imgs_ir)
 
         self.patch_h = patch_h
         self.patch_w = patch_w
@@ -59,21 +64,23 @@ class TrainDataset(Dataset):
 
         # value = self.imgs[index]
         # img_names = value.split(' ')
-        vis_img_loc = os.path.join(self.data_path_vis)
-        vis_img_ir = os.path.join(self.data_path_ir)
+        vis_img_loc = os.path.join(self.data_path_vis, self.total_img_vis[index])
+        ir_img_loc = os.path.join(self.data_path_ir, self.total_img_ir[index])
 
-        img_1 = cv2.imread(self.train_path + vis_img_loc, 0)
+        img_1 = cv2.imread(vis_img_loc)
+        print(img_1.shape)
         img_1 = center_crop(img_1, (2700, 2160))
 
         height, width = img_1.shape[:2]
         if height != self.HEIGHT or width != self.WIDTH:
             img_1 = cv2.resize(img_1, (self.WIDTH, self.HEIGHT))
-
+        
         img_1 = (img_1 - self.mean_I) / self.std_I
         img_1 = np.mean(img_1, axis=2, keepdims=True)
         img_1 = np.transpose(img_1, [2, 0, 1])
 
-        img_2 = cv2.imread(self.train_path + vis_img_ir, 0)
+        img_2 = cv2.imread(ir_img_loc)
+        print(img_2.shape)
         height, width = img_2.shape[:2]
         if height != self.HEIGHT or width != self.WIDTH:
             img_2 = cv2.resize(img_2, (self.WIDTH, self.HEIGHT))
@@ -109,7 +116,7 @@ class TrainDataset(Dataset):
 
     def __len__(self):
 
-        return len(self.imgs)
+        return len(self.total_img_ir)
 
 
 class TestDataset(Dataset):
