@@ -1,7 +1,10 @@
 import torch
+import torch.nn as nn
 import numpy as np
 import cv2
 
+
+criterion_l2 = nn.MSELoss(reduce=True, size_average=True)
 
 def DLT_solve(src_p, off_set):
     # src_p: shape=(bs, n, 4, 2)

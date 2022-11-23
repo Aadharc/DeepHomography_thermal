@@ -18,13 +18,34 @@ def make_mesh(patch_w,patch_h):
     y_mesh = np.matmul(y_flat,x_one)
     return x_mesh,y_mesh
 
+def center_crop(img, dim):
+    """
+    Return the cropped image
+    
+    Args:
+    img : image to be center cropped
+    dim : dimension(w,h) of cropped image
+    """
+    width, height = img.shape[1], img.shape[0]
+
+    width_crop = dim[0] if dim[0] < width else width
+    height_crop = dim[1] if dim[1] < height else height
+
+    mid_x, mid_y = int(width/2), int(height/2)
+    mid_cw, mid_ch = int(width_crop/2), int(height_crop/2)
+
+    crop_img = img[mid_y - mid_ch: mid_y + mid_ch, mid_x - mid_cw : mid_x + mid_cw]
+    return crop_img
 
 class TrainDataset(Dataset):
-    def __init__(self, data_path, exp_path, patch_w=560, patch_h=315, rho=16):
+    def __init__(self, data_path_vis, data_path_ir, exp_path, patch_w=560, patch_h=315, rho=16):
 
-        self.imgs = open(data_path, 'r').readlines()
+        # self.imgs = open(data_path, 'r').readlines()
         self.mean_I = np.reshape(np.array([118.93, 113.97, 102.60]), (1, 1, 3))
         self.std_I = np.reshape(np.array([69.85, 68.81, 72.45]), (1, 1, 3))
+
+        self.data_path_vis = data_path_vis
+        self.data_path_ir = data_path_ir
 
         self.patch_h = patch_h
         self.patch_w = patch_w
@@ -36,10 +57,13 @@ class TrainDataset(Dataset):
 
     def __getitem__(self, index):
 
-        value = self.imgs[index]
-        img_names = value.split(' ')
+        # value = self.imgs[index]
+        # img_names = value.split(' ')
+        vis_img_loc = os.path.join(self.data_path_vis)
+        vis_img_ir = os.path.join(self.data_path_ir)
 
-        img_1 = cv2.imread(self.train_path + img_names[0])
+        img_1 = cv2.imread(self.train_path + vis_img_loc, 0)
+        img_1 = center_crop(img_1, (2700, 2160))
 
         height, width = img_1.shape[:2]
         if height != self.HEIGHT or width != self.WIDTH:
@@ -49,7 +73,7 @@ class TrainDataset(Dataset):
         img_1 = np.mean(img_1, axis=2, keepdims=True)
         img_1 = np.transpose(img_1, [2, 0, 1])
 
-        img_2 = cv2.imread(self.train_path + img_names[1][:-1])
+        img_2 = cv2.imread(self.train_path + vis_img_ir, 0)
         height, width = img_2.shape[:2]
         if height != self.HEIGHT or width != self.WIDTH:
             img_2 = cv2.resize(img_2, (self.WIDTH, self.HEIGHT))

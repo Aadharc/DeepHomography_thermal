@@ -6,7 +6,7 @@ import numpy as np
 import os
 import torch.nn as nn
 import torch.optim as optim
-from tensorboardX import SummaryWriter
+from tensorboard import SummaryWriter
 import cv2
 from torch_homography_model import build_model
 from datetime import datetime
@@ -174,7 +174,7 @@ if __name__=="__main__":
     parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
 
     parser.add_argument('--model_name', type=str, default='resnet34')
-    parser.add_argument('--pretrained', type=bool, default=True, help='Use pretrained waights?')
+    parser.add_argument('--pretrained', type=bool, default=False, help='Use pretrained waights?')
     parser.add_argument('--finetune', type=bool, default=False, help='Use pretrained waights?')
 
     print('<==================== Loading data ===================>\n')
