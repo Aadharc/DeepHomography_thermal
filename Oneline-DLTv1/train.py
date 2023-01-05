@@ -66,15 +66,18 @@ def train(args):
         net = net.cuda()
 
     train_data = TrainDataset(data_path_vis=vis_path, data_path_ir=ir_path, exp_path=exp_name, patch_w=args.patch_size_w, patch_h=args.patch_size_h, rho=16)
-    train_loader = DataLoader(dataset=train_data, batch_size=args.batch_size, num_workers=args.cpus, shuffle=True, drop_last=True)
+    train_loader = DataLoader(dataset=train_data, batch_size=args.batch_size, num_workers=args.cpus, shuffle=False, drop_last=True)
 
     optimizer = optim.Adam(net.parameters(), lr=args.lr, amsgrad=True, weight_decay=1e-4)  # default as 0.0001
-    scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.8)
+    # scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.8)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience= 15, verbose= True)
 
     print("start training")
 
-    score_print_fre = 200
-    model_save_fre = 4000
+    # score_print_fre = 200
+    # model_save_fre = 4000
+    score_print_fre = 2
+    model_save_fre = 100
     glob_iter = 0
 
     for epoch in range(args.max_epoch):
@@ -82,8 +85,8 @@ def train(args):
         loss_sigma = 0.0
         loss_sigma_feature = 0.0
 
-        scheduler.step()  # Note: The initial learning rate should be 1e-4. torch_version==1.0.1 ->init lr == 0.0001; torch_version>=1.2.0 ->init lr == 0.0001*1.25?
-        print(epoch, 'lr={:.6f}'.format(scheduler.get_lr()[0]))
+        scheduler.step(loss_sigma_feature)  # Note: The initial learning rate should be 1e-4. torch_version==1.0.1 ->init lr == 0.0001; torch_version>=1.2.0 ->init lr == 0.0001*1.25?
+        print(epoch, 'lr={:.6f}'.format(optimizer.param_groups[0]['lr']))
         for i, batch_value in enumerate(train_loader):
             # save model
             if (glob_iter % model_save_fre == 0 and glob_iter != 0 ):
@@ -146,16 +149,17 @@ def train(args):
                 print("Training: Epoch[{:0>3}/{:0>3}] Iteration[{:0>3}]/[{:0>3}] Feature Loss: {:.4f} lr={:.8f}".format(epoch + 1,
                                                                                                        args.max_epoch,
                                                                                                        i + 1, len(train_loader), loss_avg_feature,
-                                                                                                       scheduler.get_lr()[0]))
+                                                                                                       optimizer.param_groups[0]['lr']))
 
             glob_iter += 1
 
             # using tensorbordX to check the input or output performance during training
-            if glob_iter % 200 == 0:
-                display_using_tensorboard(I, I2_ori_img, I2, pred_I2, I2_dataMat_CnnFeature, pred_I2_dataMat_CnnFeature,
+            # if glob_iter % 200 == 0:
+            if glob_iter % 20 == 0:
+                display_using_tensorboard(I, I2_ori_img, I2, pred_I2, I1, I2_dataMat_CnnFeature, pred_I2_dataMat_CnnFeature,
                                           triMask, loss_map, writer)
             writer.add_scalars('Loss_group', {'feature_loss': loss_feature.item()}, glob_iter)
-            writer.add_scalar('learning rate', scheduler.get_lr()[0], glob_iter)
+            writer.add_scalar('learning rate', optimizer.param_groups[0]['lr'], glob_iter)
 
     print('Finished Training')
 
@@ -166,14 +170,14 @@ if __name__=="__main__":
     parser.add_argument('--gpus', type=int, default=2, help='Number of splits')
     parser.add_argument('--cpus', type=int, default=8, help='Number of cpus')
 
-    parser.add_argument('--img_w', type=int, default=640)
-    parser.add_argument('--img_h', type=int, default=360)
-    parser.add_argument('--patch_size_h', type=int, default=315)
-    parser.add_argument('--patch_size_w', type=int, default=560)
+    parser.add_argument('--img_w', type=int, default=512)
+    parser.add_argument('--img_h', type=int, default=640)
+    parser.add_argument('--patch_size_h', type=int, default=256)
+    parser.add_argument('--patch_size_w', type=int, default=256)
 
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--max_epoch', type=int, default=30)
-    parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
+    parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 
     parser.add_argument('--model_name', type=str, default='resnet34')
     parser.add_argument('--pretrained', type=bool, default=False, help='Use pretrained waights?')

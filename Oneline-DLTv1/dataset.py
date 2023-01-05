@@ -39,7 +39,7 @@ def center_crop(img, dim):
     return crop_img
 
 class TrainDataset(Dataset):
-    def __init__(self, data_path_vis, data_path_ir, exp_path, patch_w=560, patch_h=315, rho=16):
+    def __init__(self, data_path_vis, data_path_ir, exp_path, patch_w=256, patch_h=256, rho=16):
 
         # self.imgs = open(data_path, 'r').readlines()
         self.mean_I = np.reshape(np.array([118.93, 113.97, 102.60]), (1, 1, 3))
@@ -55,7 +55,7 @@ class TrainDataset(Dataset):
         self.patch_h = patch_h
         self.patch_w = patch_w
         self.WIDTH = 640
-        self.HEIGHT = 360
+        self.HEIGHT = 512
         self.rho = rho
         self.x_mesh, self.y_mesh = make_mesh(self.patch_w, self.patch_h)
         self.train_path = os.path.join(exp_path, 'Data/Train/')
@@ -68,7 +68,7 @@ class TrainDataset(Dataset):
         ir_img_loc = os.path.join(self.data_path_ir, self.total_img_ir[index])
 
         img_1 = cv2.imread(vis_img_loc)
-        print(img_1.shape)
+        # print(img_1.shape)
         img_1 = center_crop(img_1, (2700, 2160))
 
         height, width = img_1.shape[:2]
@@ -80,7 +80,7 @@ class TrainDataset(Dataset):
         img_1 = np.transpose(img_1, [2, 0, 1])
 
         img_2 = cv2.imread(ir_img_loc)
-        print(img_2.shape)
+        # print(img_2.shape)
         height, width = img_2.shape[:2]
         if height != self.HEIGHT or width != self.WIDTH:
             img_2 = cv2.resize(img_2, (self.WIDTH, self.HEIGHT))
@@ -88,21 +88,27 @@ class TrainDataset(Dataset):
         img_2 = (img_2 - self.mean_I) / self.std_I
         img_2 = np.mean(img_2, axis=2, keepdims=True)
         img_2 = np.transpose(img_2, [2, 0, 1])
-        org_img = np.concatenate([img_1, img_2], axis=0)
+        org_img = np.concatenate([img_2, img_1], axis=0)
+        # print('org img',org_img.shape)
 
         x = np.random.randint(self.rho, self.WIDTH - self.rho - self.patch_w)
         y = np.random.randint(self.rho, self.HEIGHT - self.rho - self.patch_h)
 
+        # x, y =0, 0
+
         input_tesnor = org_img[:, y: y + self.patch_h, x: x + self.patch_w]
+        # print("input tensor", input_tesnor.shape)
+        
 
         y_t_flat = np.reshape(self.y_mesh, (-1))
         x_t_flat = np.reshape(self.x_mesh, (-1))
         patch_indices = (y_t_flat + y) * self.WIDTH + (x_t_flat + x)
+        # print("patch indices", patch_indices.shape)
 
-        top_left_point = (x, y)
-        bottom_left_point = (x, y + self.patch_h)
-        bottom_right_point = (self.patch_w + x, self.patch_h + y)
-        top_right_point = (x + self.patch_w, y)
+        top_left_point = (x + self.rho, y + self.rho)
+        bottom_left_point = (x + self.rho, y + self.patch_h - self.rho)
+        bottom_right_point = (self.patch_w + x - self.rho, self.patch_h + y - self.rho)
+        top_right_point = (x + self.patch_w - self.rho, y + self.rho)
         h4p = [top_left_point, bottom_left_point, bottom_right_point, top_right_point]
 
         h4p = np.reshape(h4p, (-1))
@@ -111,6 +117,7 @@ class TrainDataset(Dataset):
         input_tesnor = torch.tensor(input_tesnor)
         patch_indices = torch.tensor(patch_indices)
         h4p = torch.tensor(h4p)
+        # print("h4p", h4p.shape)
 
         return (org_img, input_tesnor, patch_indices, h4p)
 

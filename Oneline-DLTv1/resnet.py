@@ -1,10 +1,15 @@
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
 import torch, imageio
-from utils import transform, DLT_solve
+from utils import transform, DLT_solve, getBatchHLoss
+import torchvision.transforms as F
+import matplotlib.pyplot as plt
+import cv2
+import numpy as np
 
 criterion_l2 = nn.MSELoss(reduce=True, size_average=True)
-triplet_loss = nn.TripletMarginLoss(margin=1.0, p=1, reduce=False,size_average=False)
+triplet_loss = nn.TripletMarginLoss(margin=0.5, p=1, reduce=False, size_average=False)
+criterion_l1 = nn.L1Loss()
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152']
@@ -262,40 +267,104 @@ class ResNet(nn.Module):
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
         x = self.fc(x)
-        
+        # print('x shape', x.shape)
+        # print('h4p', h4p.shape)
         H_mat = DLT_solve(h4p, x).squeeze(1)
 
+        #H_inv
+        y = torch.cat((patch_2_res, patch_1_res), dim=1)
+
+        y = self.conv1(y)
+        y = self.bn1(y)
+        y = self.relu(y)
+        y = self.maxpool(y)
+
+        y = self.layer1(y)
+        y = self.layer2(y)
+        y = self.layer3(y)
+        y = self.layer4(y)
+
+        y = self.avgpool(y)
+        y = y.view(y.size(0), -1)
+        y = self.fc(y)
+
+        H_inv = DLT_solve(h4p, y).squeeze(1)
+
+        # pred_I2 = cv2.warpPerspective(np.asmatrix(org_imges[:, :1, ...]), H_mat, (patch_size_h, patch_size_w)).cpu()
+        # pred_I2 = np.array(pred_I2.cpu())
         pred_I2 = transform(patch_size_h, patch_size_w, M_tile_inv, H_mat, M_tile,
                             org_imges[:, :1, ...], patch_indices, batch_indices_tensor)
-        pred_Mask = transform(patch_size_h, patch_size_w, M_tile_inv, H_mat, M_tile,
+        pred_Mask1 = transform(patch_size_h, patch_size_w, M_tile_inv, H_mat, M_tile,
                             mask_I1_full, patch_indices, batch_indices_tensor)
 
-        pred_Mask = normMask(pred_Mask)
+        pred_I1 = transform(patch_size_h, patch_size_w, M_tile_inv, H_inv, M_tile, 
+                            org_imges[:,1:, ...], patch_indices, batch_indices_tensor)
+        pred_Mask2 = transform(patch_size_h, patch_size_w, M_tile_inv, H_inv, M_tile,
+                            mask_I2_full, patch_indices, batch_indices_tensor)
+
+
+        pred_Mask1 = normMask(pred_Mask1)
+        pred_Mask2 = normMask(pred_Mask2)
  
-        mask_ap = torch.mul(mask_I2, pred_Mask)
+        mask_ap1 = torch.mul(mask_I2, pred_Mask1)
+        mask_ap2 = torch.mul(mask_I1, pred_Mask2)
 
         # step1 freeze the mask_ap use "mask_ap = torch.ones_like(mask_ap)" ,thus gradient do not update and mask=1
         # step2 delete this line ("mask_ap = torch.ones_like(mask_ap)")  to update gradient of genMask
         # ######
-        mask_ap = torch.ones_like(mask_ap)
+        # mask_ap = torch.ones_like(mask_ap)
         # ######
 
-        sum_value = torch.sum(mask_ap)
+        sum_value1 = torch.sum(mask_ap1)
+        sum_value2 = torch.sum(mask_ap2)
         pred_I2_CnnFeature = self.ShareFeature(pred_I2)
- 
-        feature_loss_mat = triplet_loss(patch_2, pred_I2_CnnFeature, patch_1)
+        pred_I1_CnnFeature = self.ShareFeature(pred_I1)
+        # print("H_mat", H_mat.shape)
+        # print("patch 2", patch_2.shape)
+        # print("predI2", pred_I2_CnnFeature.shape)
+        # print("patch1", patch_1.shape)
+        feature_loss_mat1 = triplet_loss(patch_2, pred_I2_CnnFeature, patch_1)
+        feature_loss_mat2 = triplet_loss(patch_1, pred_I1_CnnFeature, patch_2)
+        # a1 = criterion_l1(patch_2, pred_I2_CnnFeature)
+        # a2 = criterion_l1(patch_2, patch_1)
+        # feature_loss_mat = max((a1 - a2 + 1), 0)
+        # print(a1.shape)
+        # print("featurelossmat", feature_loss_mat)
+        # print("maskap", mask_ap.shape)
 
-        feature_loss = torch.sum(torch.mul(feature_loss_mat, mask_ap)) / sum_value
+        feature_loss1 = torch.sum(torch.mul(mask_ap1, feature_loss_mat1)) / sum_value1
+        feature_loss2 = torch.sum(torch.mul(mask_ap2, feature_loss_mat2)) / sum_value2
+        feature_loss = feature_loss1 + feature_loss2
         feature_loss = torch.unsqueeze(feature_loss, 0)
+        batch_loss = getBatchHLoss(H_mat, H_inv)
+        L1_loss = criterion_l1(patch_1, patch_2)
+        total_loss = feature_loss - 2 * L1_loss + 0.01 * batch_loss
+
+        # I1_or = input_tesnors[:, 1:, ...]
+        # I1_or = I1_or.cpu().detach().numpy()[0, ...]
+        # I1_or = np.transpose(I1_or, [1, 2, 0])
+        # plt.imshow(I1_or)
+        # plt.title('Image Original', fontweight ="bold")
+        # plt.show()
 
         pred_I2_d = pred_I2[:1, ...]
+
+        # print('pred_i2 type', type(pred_I2))
+        # print_img_2_d = pred_I2.cpu().detach().numpy()[0, ...]
+        # print_img_2_d = np.transpose(print_img_2_d, [1, 2, 0])
+        # plt.imshow(print_img_2_d)
+        # plt.title('Image Converted', fontweight ="bold")
+        # plt.show()
+
+
         patch_2_res_d = patch_2_res[:1, ...]
         pred_I2_CnnFeature_d = pred_I2_CnnFeature[:1, ...]
-        mask_ap_d = mask_ap[:1, ...]
-        feature_loss_mat_d = feature_loss_mat[:1, ...]
+        mask_ap_d = mask_ap1[:1, ...]
+        feature_loss_mat_d = feature_loss_mat1[:1, ...]
+        # feature_loss_mat_d = feature_loss[:1, ...] # Do not use for final use prev
 
         out_dict = {}
-        out_dict.update(feature_loss=feature_loss, pred_I2_d=pred_I2_d, x=x, H_mat=H_mat, patch_2_res_d=patch_2_res_d,
+        out_dict.update(feature_loss=total_loss, pred_I2_d=pred_I2_d, x=x, H_mat=H_mat, patch_2_res_d=patch_2_res_d,
                         pred_I2_CnnFeature_d=pred_I2_CnnFeature_d, mask_ap_d=mask_ap_d.squeeze(1), feature_loss_mat_d=feature_loss_mat_d)
         
         return out_dict

@@ -287,13 +287,14 @@ def getBatchHLoss(H, H_inv):
     return criterion_l2(H.bmm(H_inv), Identity)
 
 
-def display_using_tensorboard(I, I2_ori_img, I2, pred_I2, I2_dataMat_CnnFeature, pred_I2_dataMat_CnnFeature, triMask, loss_map, writer):
+def display_using_tensorboard(I, I2_ori_img, I2, pred_I2, I1, I2_dataMat_CnnFeature, pred_I2_dataMat_CnnFeature, triMask, loss_map, writer):
 
     I1_ori_img = cv2.normalize(I.cpu().detach().numpy()[0, 0, ...], None, 0, 255, cv2.NORM_MINMAX,
                                cv2.CV_8U)
     I2_ori_img_ = cv2.normalize(I2_ori_img.cpu().detach().numpy()[0, 0, ...], None, 0, 255, cv2.NORM_MINMAX,
                                 cv2.CV_8U)
     input_I2 = cv2.normalize(I2.cpu().detach().numpy()[0, 0, ...], None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+    input_I1 = cv2.normalize(I1.cpu().detach().numpy()[0, 0, ...], None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
     pred_I2 = cv2.normalize(pred_I2.cpu().detach().numpy()[0, 0, ...], None, 0, 255, cv2.NORM_MINMAX,
                             cv2.CV_8U)
 
@@ -307,22 +308,26 @@ def display_using_tensorboard(I, I2_ori_img, I2, pred_I2, I2_dataMat_CnnFeature,
     loss_fig = cv2.normalize(loss_map.cpu().detach().numpy()[0, ...], None, 0, 255, cv2.NORM_MINMAX,
                              cv2.CV_8U)
 
-    writer.add_image('I1 and I2',
+    writer.add_image('I1 Thermal',
                      I1_ori_img,
                      global_step=1,
                      dataformats='HW')
-    writer.add_image('I1 and I2',
+    writer.add_image('I2 Visual',
                      I2_ori_img_,
-                     global_step=2,
+                     global_step=1,
                      dataformats='HW')
 
-    writer.add_image('I2 and pred_I2',
+    writer.add_image('I2 input',
                      input_I2,
                      global_step=1,
                      dataformats='HW')
-    writer.add_image('I2 and pred_I2',
+    writer.add_image('I1 input',
+                     input_I1,
+                     global_step=1,
+                     dataformats='HW')
+    writer.add_image('pred_I2',
                      pred_I2,
-                     global_step=2,
+                     global_step=1,
                      dataformats='HW')
 
     writer.add_image('I2 and pred I2 feature_1',
@@ -331,7 +336,7 @@ def display_using_tensorboard(I, I2_ori_img, I2, pred_I2, I2_dataMat_CnnFeature,
                      dataformats='HW')
     writer.add_image('I2 and pred I2 feature_1',
                      pred_I2_channel_1,
-                     global_step=2,
+                     global_step=1,
                      dataformats='HW')
 
     writer.add_image('loss_map and mask',
@@ -340,7 +345,23 @@ def display_using_tensorboard(I, I2_ori_img, I2, pred_I2, I2_dataMat_CnnFeature,
                      dataformats='HW')
     writer.add_image('loss_map and mask',
                      mask_1,
-                     global_step=2,
+                     global_step=1,
                      dataformats='HW')
 
 
+# def save_some_examples(model, val_loader, epoch, folder):
+#     x, y = next(iter(val_loader))
+#     x, y = x.to(config.DEVICE), y.to(config.DEVICE)
+#     gen.eval()
+#     with torch.no_grad():
+#         y_fake = gen(x)
+#         # y_fake = y_fake * 0.5 + 0.5  # remove normalization#
+#         # y_fake = y_fake  
+#         save_image(y_fake, folder + f"/y_gen_{epoch}.png")
+#         # save_image(x * 0.5 + 0.5, folder + f"/input_{epoch}.png")
+#         save_image(x, folder + f"/input_{epoch}.png")
+#         save_image(y, folder + f"/label_{epoch}.png")
+#         # if epoch == 0:
+#         #     save_image(y, folder + f"/label_{epoch}.png")
+#             # save_image(y * 0.5 + 0.5, folder + f"/label_{epoch}.png")
+#     gen.train()
